@@ -22,27 +22,27 @@ class _FileCoreHandler(FileSystemEventHandler):
         super().__init__()
         self._emitter = emitter
 
-    async def _emit(self, event_type: EventType, event: FileSystemEvent) -> None:
-        await self._emitter.emit(
+    def _emit(self, event_type: EventType, event: FileSystemEvent) -> None:
+        self._emitter.emit(
             ChangeFileEvent(
                 event=event_type,
                 src_path=event.src_path,
-                dest_path=event.dest_path,
-                is_directory=event.is_directory
+                dest_path=getattr(event, "dest_path", None),
+                is_directory=getattr(event, "is_directory", False),
             )
         )
 
-    async def on_created(self, event: FileSystemEvent) -> None:
-        await self._emit("created", event)
+    def on_created(self, event: FileSystemEvent) -> None:
+        self._emit("created", event)
 
-    async def on_deleted(self, event: FileSystemEvent) -> None:
-        await self._emit("deleted", event)
+    def on_deleted(self, event: FileSystemEvent) -> None:
+        self._emit("deleted", event)
 
-    async def on_modified(self, event: FileSystemEvent) -> None:
-        await self._emit("modified", event)
+    def on_modified(self, event: FileSystemEvent) -> None:
+        self._emit("modified", event)
 
-    async def on_moved(self, event: FileSystemEvent) -> None:
-        await self._emit("moved", event)
+    def on_moved(self, event: FileSystemEvent) -> None:
+        self._emit("moved", event)
 
 
 class HawkeyWatcher:

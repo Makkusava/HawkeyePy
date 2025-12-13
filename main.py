@@ -69,6 +69,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         payload = evt.to_dict()
         await insert_change_log(db_conn, payload)
 
+    watcher.emitter.set_loop(loop)
     watcher.emitter.add_async(insert_to_database)
     watcher.emitter.add_sync(log)
     watcher.emitter.add_sync(push_to_socket)
