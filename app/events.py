@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import asyncio
-import inspect
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Literal, Optional, Awaitable, Union
+from typing import Any, Callable, Dict, List, Literal, Optional
 
 EventType = Literal["created", "deleted", "modified", "moved"]
 
@@ -26,46 +24,25 @@ class ChangeFileEvent:
         return {
             "event": self.event,
             "src_path": self.src_path,
-            "dest_path": getattr(self, "dest_path", None),
+            "dest_path": self.dest_path,
             "is_directory": self.is_directory,
-            "timestamp_utc": utc_now()
+            "timestamp_utc": utc_now(),
         }
 
 
-SyncHandler = Callable[[ChangeFileEvent], None]
-AsyncHandler = Callable[[ChangeFileEvent], Awaitable[None]]
+Handler = Callable[[ChangeFileEvent], None]
+
 
 class EventEmitter:
     def __init__(self) -> None:
-        self._sync_handlers: List[SyncHandler] = []
-        self._async_handlers: List[AsyncHandler] = []
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._handlers: List[Handler] = []
 
-    def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        self._loop = loop
-
-    def add_sync(self, handler: SyncHandler) -> None:
-        self._sync_handlers.append(handler)
-
-    def add_async(self, handler: AsyncHandler) -> None:
-        self._async_handlers.append(handler)
+    def add(self, handler: Handler) -> None:
+        self._handlers.append(handler)
 
     def emit(self, evt: ChangeFileEvent) -> None:
-        for h in list(self._sync_handlers):
+        for h in list(self._handlers):
             try:
                 h(evt)
             except Exception:
-                logger.exception("Sync handler failed")
-
-        if self._async_handlers:
-            if not self._loop:
-                logger.warning("Async handlers registered but loop is not set")
-                return
-
-            for ah in list(self._async_handlers):
-                try:
-                    coro = ah(evt)
-                    if inspect.isawaitable(coro):
-                        self._loop.call_soon_threadsafe(asyncio.create_task, coro)
-                except Exception:
-                    logger.exception("Async handler scheduling failed")
+                logger.exception("Event handler failed: %s", evt)

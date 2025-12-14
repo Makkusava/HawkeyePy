@@ -1,91 +1,121 @@
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Any, Dict
+from typing import Any, AsyncIterator, Dict, Optional, Awaitable, Callable
 
 import socketio
 from fastapi import FastAPI
 
-from app.db_logger import insert_change_log, init_db
-from app.watcher import load_from_env
-from app.events import ChangeFileEvent
+from config import load_settings
+from app.watcher import HawkeyWatcher
+from app.pipeline import make_enqueue, events_consumer
+from app.loggers.db_logger import init_db
+from app.loggers.log_journal_handler import LogJournalQueueHandler
+from app.loggers.log_journal_pipeline import log_journal_consumer
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s | %(name)s | %(message)s",
-)
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger("hawkeye")
 
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
-_fs_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=10_000)
 
-watcher = load_from_env()
+settings = load_settings()
+
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+
+events_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=settings.queue_maxsize)
+logs_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=settings.queue_maxsize)
+
+watcher = HawkeyWatcher(watch_dirs=settings.watch_dirs, recursive=settings.watch_recursive)
 
 
 @sio.event
 async def connect(sid, environ, auth):
-    logger.info("Socket. Client connected: %s", sid)
+    logger.info("Socket connected: %s", sid)
     await sio.emit("hello", {"status": "connected"}, to=sid)
 
 
 @sio.event
 async def disconnect(sid):
-    logger.info("Socket. Client disconnected: %s", sid)
+    logger.info("Socket disconnected: %s", sid)
 
 
-async def _socket_consumer() -> None:
-    while True:
-        payload = await _fs_queue.get()
-        try:
-            await sio.emit("fs_event", payload)  # broadcast to all
-        finally:
-            _fs_queue.task_done()
+async def _emit_socket(event_name: str, payload: Dict[str, Any]) -> None:
+    await sio.emit(event_name, payload)
+
+
+async def _cancel_task(task: Optional[asyncio.Task]) -> None:
+    if not task:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+def _attach_global_log_handler(
+    *,
+    loop: asyncio.AbstractEventLoop,
+    queue: asyncio.Queue[Dict[str, Any]],
+    level: int = logging.INFO,
+) -> LogJournalQueueHandler:
+    root_logger = logging.getLogger()
+    handler = LogJournalQueueHandler(loop=loop, queue=queue)
+    handler.setLevel(level)
+    root_logger.addHandler(handler)
+    return handler
+
+
+def _detach_global_log_handler(handler: LogJournalQueueHandler) -> None:
+    root_logger = logging.getLogger()
+    root_logger.removeHandler(handler)
+    handler.close()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     loop = asyncio.get_running_loop()
 
-    db_path = os.getenv("DB_PATH", "hawkeye.db")
-    db_conn = await init_db(db_path)
-    logger.info("SQLite connected: %s", db_path)
+    if not settings.watch_dirs:
+        logger.warning("WATCH_DIRS is empty. Nothing will be watched.")
 
+    db_conn = await init_db(settings.db_path)
 
-    def log(evt: ChangeFileEvent) -> None:
-        if evt.event == "moved":
-            logger.info("[%s] is_dir: %s | %s -> %s", evt.event, evt.is_directory, evt.src_path, evt.dest_path)
-        else:
-            logger.info("[%s] is_dir: %s | %s", evt.event, evt.is_directory, evt.src_path)
-
-    def push_to_socket(evt: ChangeFileEvent) -> None:
-        payload = evt.to_dict()
-        try:
-            loop.call_soon_threadsafe(_fs_queue.put_nowait, payload)
-        except asyncio.QueueFull:
-            pass
-
-    async def insert_to_database(evt: ChangeFileEvent) -> None:
-        payload = evt.to_dict()
-        await insert_change_log(db_conn, payload)
-
-    watcher.emitter.set_loop(loop)
-    watcher.emitter.add_async(insert_to_database)
-    watcher.emitter.add_sync(log)
-    watcher.emitter.add_sync(push_to_socket)
-
+    watcher.emitter.add(make_enqueue(loop=loop, queue=events_queue))
     watcher.start()
-    consumer_task = asyncio.create_task(_socket_consumer())
+
+    journal_handler = _attach_global_log_handler(loop=loop, queue=logs_queue, level=logging.INFO)
+
+    events_task = asyncio.create_task(
+        events_consumer(
+            queue=events_queue,
+            db_conn=db_conn,
+            emit_socket=lambda p: _emit_socket(settings.socket_file_change_event_name, p),
+        ),
+        name="hawkeye-events-consumer",
+    )
+
+    logs_task = asyncio.create_task(
+        log_journal_consumer(
+            queue=logs_queue,
+            db_conn=db_conn,
+            emit_socket=lambda p: _emit_socket(settings.socket_log_event_name, p),
+        ),
+        name="hawkeye-logs-consumer",
+    )
+
+    logger.info("Startup complete")
 
     yield
 
-    consumer_task.cancel()
-    try:
-        await consumer_task
-    except asyncio.CancelledError:
-        pass
+    await _cancel_task(events_task)
+    await _cancel_task(logs_task)
+
+    _detach_global_log_handler(journal_handler)
 
     watcher.stop()
+    await db_conn.close()
+    logger.info("SQLite closed")
 
 
 fastapi_app = FastAPI(lifespan=lifespan)
@@ -93,7 +123,11 @@ fastapi_app = FastAPI(lifespan=lifespan)
 
 @fastapi_app.get("/")
 async def root():
-    return {"app": "Hawkeye: Watching your files", "socketio_event": "fs_event"}
+    return {
+        "app": "Hawkeye",
+        "socket_file_change_event": settings.socket_file_change_event_name,
+        "socket_log_event": settings.socket_log_event_name
+    }
 
 
 @fastapi_app.get("/health")

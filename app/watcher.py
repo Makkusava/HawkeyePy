@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Iterable, List, Awaitable
+from typing import Iterable, List
 
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
 from watchdog.observers import Observer
@@ -13,8 +13,7 @@ logger = logging.getLogger("hawkeye-watcher")
 def _parse_watch_dirs(env_value: str | None) -> List[str]:
     if not env_value:
         return []
-    raw = [x.strip() for x in env_value.split(";")]
-    return [x for x in raw if x]
+    return [x.strip() for x in env_value.split(";") if x.strip()]
 
 
 class _FileCoreHandler(FileSystemEventHandler):
@@ -53,10 +52,6 @@ class HawkeyWatcher:
         self._watch_dirs = list(watch_dirs)
         self._recursive = recursive
 
-    @property
-    def watch_dirs(self) -> List[str]:
-        return self._watch_dirs
-
     def start(self) -> None:
         if not self._watch_dirs:
             logger.warning("No watch dirs configured. Set WATCH_DIRS env var.")
@@ -66,7 +61,6 @@ class HawkeyWatcher:
             if not os.path.exists(d):
                 logger.warning("Watch dir does not exist: %s", d)
                 continue
-
             self._observer.schedule(self._handler, d, recursive=self._recursive)
             logger.info("Start watching: %s (recursive=%s)", d, self._recursive)
 
@@ -76,8 +70,3 @@ class HawkeyWatcher:
         if self._observer.is_alive():
             self._observer.stop()
 
-
-def load_from_env() -> HawkeyWatcher:
-    watch_dirs = _parse_watch_dirs(os.getenv("WATCH_DIRS"))
-    recursive = os.getenv("WATCH_RECURSIVE", "true").lower() == "true"
-    return HawkeyWatcher(watch_dirs=watch_dirs, recursive=recursive)
