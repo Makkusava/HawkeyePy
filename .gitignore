@@ -1,0 +1,79 @@
+# ======================
+# Python
+# ======================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# ======================
+# Pytest / coverage
+# ======================
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ======================
+# SQLite databases
+# ======================
+*.db
+*.sqlite
+*.sqlite3
+
+# SQLite temporary files
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ======================
+# Logs
+# ======================
+*.log
+logs/
+log/
+
+# ======================
+# Environment variables
+# ======================
+.env
+.env.*
+!.env.example
+
+# ======================
+# IDEs / Editors
+# ======================
+# PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# ======================
+# OS / Misc
+# ======================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ======================
+# Build / packaging
+# ======================
+build/
+dist/
+*.egg-info/
+
+# ======================
+# Temporary files
+# ======================
+*.tmp
+*.swp
+*.swo
