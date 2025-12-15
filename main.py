@@ -88,7 +88,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     watcher.emitter.add(make_enqueue(loop=loop, queue=events_queue))
     watcher.start()
 
-    journal_handler = _attach_global_log_handler(loop=loop, queue=logs_queue, level=logging.INFO)
+    journal_handler = _attach_global_log_handler(loop=loop, queue=logs_queue, level=logging.DEBUG)
 
     events_task = asyncio.create_task(
         events_consumer(
