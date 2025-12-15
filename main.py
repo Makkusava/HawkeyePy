@@ -67,7 +67,23 @@ def _attach_global_log_handler(
     handler = LogJournalQueueHandler(loop=loop, queue=queue)
     handler.setLevel(level)
     root_logger.addHandler(handler)
+    logging.captureWarnings(True)
     return handler
+
+import logging
+from typing import Iterable
+
+def _force_propagate_to_root(
+    logger_names: Iterable[str],
+    level: int = logging.INFO
+) -> None:
+    for name in logger_names:
+        logger_named = logging.getLogger(name)
+        logger_named.handlers.clear()
+
+        logger_named.setLevel(level)
+        logger_named.propagate = True
+
 
 
 def _detach_global_log_handler(handler: LogJournalQueueHandler) -> None:
@@ -89,6 +105,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     watcher.start()
 
     journal_handler = _attach_global_log_handler(loop=loop, queue=logs_queue, level=logging.DEBUG)
+    _force_propagate_to_root(["uvicorn", "uvicorn.error", "fastapi", "watchdog", "asyncio"], logging.INFO)
 
     events_task = asyncio.create_task(
         events_consumer(
