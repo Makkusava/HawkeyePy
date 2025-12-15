@@ -10,7 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt \
+ && python -m pip show uvicorn \
+ && python -m uvicorn --version
 
 COPY app /app/app
 COPY main.py /app/main.py
@@ -18,4 +20,4 @@ COPY config.py /app/config.py
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:fastapi_app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "main:fastapi_app", "--host", "0.0.0.0", "--port", "8000"]

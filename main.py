@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional, Awaitable, Callable
 
 import socketio
@@ -19,6 +20,9 @@ logger = logging.getLogger("hawkeye")
 
 
 settings = load_settings()
+
+path = Path("/watch")
+path.mkdir(parents=True, exist_ok=True)
 
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 
