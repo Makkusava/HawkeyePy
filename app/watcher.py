@@ -4,6 +4,7 @@ from typing import Iterable, List
 
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
 from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 
 from app.events import EventEmitter, ChangeFileEvent, EventType
 
@@ -45,9 +46,9 @@ class _FileCoreHandler(FileSystemEventHandler):
 
 
 class HawkeyWatcher:
-    def __init__(self, watch_dirs: Iterable[str], recursive: bool = True) -> None:
+    def __init__(self, watch_dirs: Iterable[str],  use_polling: bool, recursive: bool = True) -> None:
         self.emitter = EventEmitter()
-        self._observer = Observer()
+        self._observer = PollingObserver(timeout=1) if use_polling else Observer()
         self._handler = _FileCoreHandler(self.emitter)
         self._watch_dirs = list(watch_dirs)
         self._recursive = recursive

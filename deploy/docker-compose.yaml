@@ -7,11 +7,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      WATCH_DIRS: "/watch"
+      WATCH_DIRS: "/watched"
       WATCH_RECURSIVE: "true"
       DB_PATH: /database/hawkeye.db
       SOCKET_FILE_CHANGE_EVENT_NAME: "file_change_event"
       SOCKET_LOG_EVENT_NAME: "log_event"
+      WATCHDOG_POLLING: "true"
     volumes:
-      - ./watched:/watch
+      - ./watched:/watched
       - ./database:/database

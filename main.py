@@ -29,7 +29,7 @@ sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 events_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=settings.queue_maxsize)
 logs_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue(maxsize=settings.queue_maxsize)
 
-watcher = HawkeyWatcher(watch_dirs=settings.watch_dirs, recursive=settings.watch_recursive)
+watcher = HawkeyWatcher(watch_dirs=settings.watch_dirs, use_polling=settings.use_polling, recursive=settings.watch_recursive)
 
 
 @sio.event

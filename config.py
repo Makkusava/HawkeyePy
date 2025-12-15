@@ -17,14 +17,16 @@ class Settings:
     queue_maxsize: int
     socket_file_change_event_name: str
     socket_log_event_name: str
+    use_polling: bool
 
 
 def load_settings() -> Settings:
     return Settings(
-        watch_dirs=parse_watch_dirs(os.getenv("WATCH_DIRS", "watch")),
+        watch_dirs=parse_watch_dirs(os.getenv("WATCH_DIRS", "watched")),
         watch_recursive=os.getenv("WATCH_RECURSIVE", "true").lower() == "true",
         db_path=os.getenv("DB_PATH", "hawkeye.db"),
         queue_maxsize=int(os.getenv("QUEUE_MAXSIZE", "10000")),
         socket_file_change_event_name=os.getenv("SOCKET_FILE_CHANGE_EVENT_NAME", "file_change_event"),
         socket_log_event_name=os.getenv("SOCKET_LOG_EVENT_NAME", "log_event"),
+        use_polling=os.getenv("WATCHDOG_POLLING", "false").lower() == "true"
     )
