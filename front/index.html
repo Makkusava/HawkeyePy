@@ -1,0 +1,95 @@
+﻿<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <title>Hawkeye logs</title>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    h2 {
+      margin-top: 0;
+    }
+
+    .container {
+      display: flex;
+      gap: 20px;
+    }
+
+    .box {
+      flex: 1;
+      border: 1px solid #ccc;
+      padding: 10px;
+      height: 400px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 13px;
+      background: #f9f9f9;
+    }
+
+    .line {
+      margin-bottom: 4px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Hawkeye</h1>
+
+<div class="container">
+  <div>
+    <h2>File changes</h2>
+    <div id="fileLogs" class="box"></div>
+  </div>
+
+  <div>
+    <h2>App logs</h2>
+    <div id="appLogs" class="box"></div>
+  </div>
+</div>
+
+<script>
+  const socket = io("http://localhost:8000");
+
+  const fileLogs = document.getElementById("fileLogs");
+  const appLogs = document.getElementById("appLogs");
+
+  function addLine(container, data) {
+    const div = document.createElement("div");
+    div.className = "line";
+
+    if (typeof data === "object") {
+      div.textContent = JSON.stringify(data, null, 2);
+    } else {
+      div.textContent = data;
+    }
+
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  socket.on("connect", () => {
+    addLine(appLogs, "Connected to socket");
+  });
+
+  socket.on("disconnect", () => {
+    addLine(appLogs, "Disconnected");
+  });
+
+  socket.on("file_change_event", (data) => {
+    addLine(fileLogs, data);
+  });
+
+  socket.on("log_event", (data) => {
+    addLine(appLogs, data);
+  });
+</script>
+
+</body>
+</html>
