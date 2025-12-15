@@ -100,7 +100,7 @@ docker compose -f deploy/docker-compose.yaml up --build
 
 Після цього сервіс буде доступний на `http://localhost:8000` (порти `8000:8000`).
 
-### Важливо для Windows/macOS (Docker Desktop)
+### Важливо для Windows (Docker Desktop)
 
 На bind‑mount директоріях події файлової системи часто **не прокидаються** через inotify.
 Файли синхронізуються, але watcher не бачить змін, зроблених на хості.
